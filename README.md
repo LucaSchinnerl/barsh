@@ -13,7 +13,7 @@ Install barsh: `cargo install --path .`
 ### Step 3 Set API-KEY
 To run first set your OPENAI API key
 - bash: `export OPENAI_SK=<Your OEPNAI-API key>`
-- fish: `set -Ux <Your OEPNAI-API key>
+- fish: `set -Ux <Your OEPNAI-API key>`
 
 ### Step 4 Run Barsh
 Some examples:
