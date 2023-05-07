@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Define OPENAI request
     let client = Client::new(env::var("OPENAI_SK").expect("Could not find API key"));
     let req = ChatCompletionRequest {
-        model: chat_completion::GPT4.to_string(),
+        model: chat_completion::GPT3_5_TURBO.to_string(),
         messages: vec![chat_completion::ChatCompletionMessage {
             role: chat_completion::MessageRole::user,
             content: prompt,
