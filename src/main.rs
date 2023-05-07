@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cmd = &result.choices[0].message.content;
 
     println!("{}", cmd);
-    println!("Enter y to expect or n to cancel");
+    println!("Enter y to run or n to cancel");
 
     if proceed() {
         let argv = split(cmd).expect("Could not parse command");
