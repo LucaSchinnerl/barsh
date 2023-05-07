@@ -1,15 +1,13 @@
-use std::fs;
-use std::env;
 use openai_api_rs::v1::api::Client;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
-use std::process::Command;
-use shlex::split;
 use proceed::proceed;
-
+use shlex::split;
+use std::env;
+use std::fs;
+use std::process::Command;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     // Get OS and shell
     let os = env::consts::OS;
     let shell = "bash";
@@ -34,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         model: chat_completion::GPT4.to_string(),
         messages: vec![chat_completion::ChatCompletionMessage {
             role: chat_completion::MessageRole::user,
-            content: prompt, 
+            content: prompt,
         }],
     };
 
@@ -47,7 +45,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if proceed() {
         let argv = split(cmd).expect("Could not parse command");
-        Command::new(&argv[0]).args(&argv[1..]).spawn().expect("Command failed to start");
+        Command::new(&argv[0])
+            .args(&argv[1..])
+            .spawn()
+            .expect("Command failed to start");
     } else {
         println!("Canceled");
     }
