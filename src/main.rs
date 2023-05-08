@@ -4,6 +4,7 @@ use proceed::proceed;
 use shlex::split;
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 
 #[tokio::main]
@@ -20,7 +21,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let command = args[1..].join(" ");
 
     // Define the promt
-    let mut prompt = fs::read_to_string("./data/promt.txt")
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("data/promt.txt");
+    let mut prompt = fs::read_to_string(path)
         .expect("Could not find promt data")
         .replace("{os}", os)
         .replace("{shell}", shell);
