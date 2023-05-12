@@ -148,7 +148,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             ).expect("Could not parse Commands");
 
     let cmd: Vec<&str> = parent.commands.iter().map(AsRef::as_ref).collect();
-        
 
     // Define the TUI
     // setup terminal
@@ -180,7 +179,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ShellCommand {
-    commands: Vec<String>
+    commands: Vec<String>,
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
