@@ -7,11 +7,100 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use std::{error::Error, io};
+use tui::{
+    backend::{Backend, CrosstermBackend},
+    layout::{Constraint, Layout},
+    style::{Color, Modifier, Style},
+    widgets::{Block, Borders, Cell, Row, Table, TableState},
+    Frame, Terminal,
+};
+struct App<'a> {
+    state: TableState,
+    items: Vec<&'a str>,
+}
+impl<'a> App<'a> {
+    fn new(cmds: &'a Vec<&str>) -> App<'a> {
+
+        App {
+            state: TableState::default(),
+            items: cmds.to_vec(),
+        }
+    }
+    pub fn next(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i >= self.items.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
+    }
+
+    pub fn previous(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.items.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
+    }
+}
+
+
+fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+    let rects = Layout::default()
+        .constraints([Constraint::Percentage(100)].as_ref())
+        .margin(5)
+        .split(f.size());
+    let rows = app.items.chunks(1).map(|item| {
+        let height = item
+            .iter()
+            .filter(|element| !element.is_empty())
+            .map(|content| content
+                //.split('\n')
+                //.filter(|element| !element.is_empty())
+                //.collect::<Vec<&str>>()
+                //.join("#")
+                .chars()
+                .filter(|c| *c == '#')
+                .count()
+            )
+            .max()
+            .unwrap_or(0)
+            + 1;
+        let cells = item.iter().map(|c| Cell::from(*c));
+        Row::new(cells).height(height as u16).bottom_margin(1)
+    });
+    let t = Table::new(rows)
+        .highlight_symbol(">> ")
+        .widths(&[
+            Constraint::Percentage(50),
+            Constraint::Length(30),
+            Constraint::Min(10),
+        ]);
+    f.render_stateful_widget(t, rects[0], &mut app.state);
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn Error>> {
     // Get OS and shell
     let os = env::consts::OS;
-    let shell = "bash";
+    let shell = "fish";
 
     // Parse input
     let args: Vec<String> = env::args().collect();
@@ -41,20 +130,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Send out reqest and parse command
     let result = client.chat_completion(req).await?;
-    let cmd = &result.choices[0].message.content;
+    let cmd = &result
+        .choices[0]
+        .message
+        .content
+        .split('#')
+        .collect::<Vec<&str>>();
+    // Define the TUI 
+    // setup terminal
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
-    println!("{}", cmd);
-    println!("Enter y to run or n to cancel");
+    // create app and run it
+    let app = App::new(cmd);
+    let res = run_app(&mut terminal, app);
 
-    if proceed() {
-        let argv = split(cmd).expect("Could not parse command");
-        Command::new(&argv[0])
-            .args(&argv[1..])
-            .spawn()
-            .expect("Command failed to start");
-    } else {
-        println!("Canceled");
+    // restore terminal
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
+    if let Err(err) = res {
+        println!("{:?}", err)
     }
 
     Ok(())
 }
+
+
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+    loop {
+        terminal.draw(|f| ui(f, &mut app))?;
+
+        if let Event::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Char('q') => return Ok(()),
+                KeyCode::Down => app.next(),
+                KeyCode::Up => app.previous(),
+                _ => {}
+            }
+        }
+    }
+}
+
