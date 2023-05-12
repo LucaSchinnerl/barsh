@@ -1,11 +1,15 @@
+use proceed::proceed;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use shlex::split;
+use std::process::Command;
+
 use openai_api_rs::v1::api::Client;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
-use proceed::proceed;
-use shlex::split;
+
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -16,8 +20,7 @@ use std::{error::Error, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Layout},
-    style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Row, Table, TableState},
+    widgets::{Cell, Row, Table, TableState},
     Frame, Terminal,
 };
 struct App<'a> {
@@ -26,7 +29,6 @@ struct App<'a> {
 }
 impl<'a> App<'a> {
     fn new(cmds: &'a Vec<&str>) -> App<'a> {
-
         App {
             state: TableState::default(),
             items: cmds.to_vec(),
@@ -59,8 +61,16 @@ impl<'a> App<'a> {
         };
         self.state.select(Some(i));
     }
-}
 
+    pub fn execute(&mut self) {
+        let argv =
+            split(self.items[self.state.selected().unwrap()]).expect("Could not parse command");
+        Command::new(&argv[0])
+            .args(&argv[1..])
+            .spawn()
+            .expect("Command failed to start");
+    }
+}
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let rects = Layout::default()
@@ -71,28 +81,27 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         let height = item
             .iter()
             .filter(|element| !element.is_empty())
-            .map(|content| content
-                //.split('\n')
-                //.filter(|element| !element.is_empty())
-                //.collect::<Vec<&str>>()
-                //.join("#")
-                .chars()
-                .filter(|c| *c == '#')
-                .count()
-            )
+            .map(|content| {
+                content
+                    //.split('\n')
+                    //.filter(|element| !element.is_empty())
+                    //.collect::<Vec<&str>>()
+                    //.join("#")
+                    .chars()
+                    .filter(|c| *c == '#')
+                    .count()
+            })
             .max()
             .unwrap_or(0)
             + 1;
         let cells = item.iter().map(|c| Cell::from(*c));
         Row::new(cells).height(height as u16).bottom_margin(1)
     });
-    let t = Table::new(rows)
-        .highlight_symbol(">> ")
-        .widths(&[
-            Constraint::Percentage(50),
-            Constraint::Length(30),
-            Constraint::Min(10),
-        ]);
+    let t = Table::new(rows).highlight_symbol(">> ").widths(&[
+        Constraint::Percentage(50),
+        Constraint::Length(30),
+        Constraint::Min(10),
+    ]);
     f.render_stateful_widget(t, rects[0], &mut app.state);
 }
 
@@ -130,13 +139,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Send out reqest and parse command
     let result = client.chat_completion(req).await?;
-    let cmd = &result
-        .choices[0]
-        .message
-        .content
-        .split('#')
-        .collect::<Vec<&str>>();
-    // Define the TUI 
+
+    let parent: ShellCommand = //Vec<String> = 
+            serde_json::from_str::<ShellCommand>(
+            &result.choices[0]
+            .message
+            .content
+            ).expect("Could not parse Commands");
+
+    let cmd: Vec<&str> = parent.commands.iter().map(AsRef::as_ref).collect();
+        
+
+    // Define the TUI
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -145,7 +159,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let app = App::new(cmd);
+    let app = App::new(&cmd);
     let res = run_app(&mut terminal, app);
 
     // restore terminal
@@ -164,6 +178,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct ShellCommand {
+    commands: Vec<String>
+}
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
     loop {
@@ -174,9 +192,12 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 KeyCode::Char('q') => return Ok(()),
                 KeyCode::Down => app.next(),
                 KeyCode::Up => app.previous(),
+                KeyCode::Enter => {
+                    app.execute();
+                    return Ok(());
+                }
                 _ => {}
             }
         }
     }
 }
-
