@@ -19,8 +19,8 @@ use std::{error::Error, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Layout},
-    style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Row, Table, TableState, Widget},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, Cell, Row, Table, TableState},
     Frame, Terminal,
 };
 struct App<'a> {
