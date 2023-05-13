@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 use serde_json;
 use shlex::split;
@@ -20,7 +19,8 @@ use std::{error::Error, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Layout},
-    widgets::{Cell, Row, Table, TableState},
+    style::{Color, Modifier, Style},
+    widgets::{Block, Borders, Cell, Row, Table, TableState, Widget},
     Frame, Terminal,
 };
 struct App<'a> {
@@ -74,34 +74,30 @@ impl<'a> App<'a> {
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let rects = Layout::default()
-        .constraints([Constraint::Percentage(100)].as_ref())
-        .margin(5)
+        .constraints([Constraint::Percentage(50)].as_ref())
+        .margin(7)
         .split(f.size());
+    let selected_style = Style::default().add_modifier(Modifier::REVERSED);
     let rows = app.items.chunks(1).map(|item| {
         let height = item
             .iter()
             .filter(|element| !element.is_empty())
-            .map(|content| {
-                content
-                    //.split('\n')
-                    //.filter(|element| !element.is_empty())
-                    //.collect::<Vec<&str>>()
-                    //.join("#")
-                    .chars()
-                    .filter(|c| *c == '#')
-                    .count()
-            })
+            .map(|content| content.chars().filter(|c| *c == '#').count())
             .max()
             .unwrap_or(0)
             + 1;
         let cells = item.iter().map(|c| Cell::from(*c));
         Row::new(cells).height(height as u16).bottom_margin(1)
     });
-    let t = Table::new(rows).highlight_symbol(">> ").widths(&[
-        Constraint::Percentage(50),
-        Constraint::Length(30),
-        Constraint::Min(10),
-    ]);
+    let t = Table::new(rows)
+        .block(Block::default().borders(Borders::ALL).title("Commands"))
+        .highlight_style(selected_style)
+        .highlight_symbol(">> ")
+        .widths(&[
+            Constraint::Percentage(50),
+            Constraint::Length(30),
+            Constraint::Min(10),
+        ]);
     f.render_stateful_widget(t, rects[0], &mut app.state);
 }
 
@@ -157,6 +153,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    terminal.draw(|f| {
+        let size = f.size();
+        let block = Block::default().title("Block").borders(Borders::ALL);
+        f.render_widget(block, size);
+    })?;
     // create app and run it
     let app = App::new(&cmd);
     let res = run_app(&mut terminal, app);

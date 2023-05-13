@@ -6,7 +6,9 @@ Always follow these rules wihtout exceptions:
 Generate at least 2, but most 5 unique and different options.
 All answer must be valid {shell} commands.
 Return all results in JSON format with only one single field called "commands".
+Only return valid JSON that can be serialized as is.
 Do not inclide any linebreaks.
+Never ever include any trailing characters before or after the json data. This is very important, exclusivly return the json data.
 Do not include any additional text or comments only include the valid {shell} commands.
 Be concise.
 Do not include any additional text or comments.
