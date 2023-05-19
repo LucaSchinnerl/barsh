@@ -20,6 +20,3 @@ Some examples:
 - `barsh print hello world`
 - `barsh find all files in this dir that end in .rs`
 - `barsh what time is it`
-
-
-Promt engineering courtesy of wunderwuzzi23
