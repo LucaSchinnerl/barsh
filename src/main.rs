@@ -1,17 +1,111 @@
+use serde::{Deserialize, Serialize};
+use serde_json;
+use shlex::split;
+use std::process::Command;
+
 use openai_api_rs::v1::api::Client;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
-use proceed::proceed;
-use shlex::split;
+
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
+
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use std::{error::Error, io};
+use tui::{
+    backend::{Backend, CrosstermBackend},
+    layout::{Constraint, Layout},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, Cell, Row, Table, TableState},
+    Frame, Terminal,
+};
+struct App<'a> {
+    state: TableState,
+    items: Vec<&'a str>,
+}
+impl<'a> App<'a> {
+    fn new(cmds: &'a Vec<&str>) -> App<'a> {
+        App {
+            state: TableState::default(),
+            items: cmds.to_vec(),
+        }
+    }
+    pub fn next(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i >= self.items.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
+    }
+
+    pub fn previous(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    self.items.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
+    }
+
+    pub fn execute(&mut self) {
+        let argv =
+            split(self.items[self.state.selected().unwrap()]).expect("Could not parse command");
+        Command::new(&argv[0])
+            .args(&argv[1..])
+            .spawn()
+            .expect("Command failed to start");
+    }
+}
+
+fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+    let rects = Layout::default()
+        .constraints([Constraint::Percentage(50)].as_ref())
+        .margin(7)
+        .split(f.size());
+    let selected_style = Style::default().add_modifier(Modifier::REVERSED);
+    let rows = app.items.chunks(1).map(|item| {
+        let height = item
+            .iter()
+            .filter(|element| !element.is_empty())
+            .map(|content| content.chars().filter(|c| *c == '#').count())
+            .max()
+            .unwrap_or(0)
+            + 1;
+        let cells = item.iter().map(|c| Cell::from(*c));
+        Row::new(cells).height(height as u16).bottom_margin(1)
+    });
+    let t = Table::new(rows)
+        .block(Block::default().borders(Borders::ALL).title("Commands"))
+        .highlight_style(selected_style)
+        .highlight_symbol(">> ")
+        .widths(&[
+            Constraint::Percentage(50),
+            Constraint::Length(30),
+            Constraint::Min(10),
+        ]);
+    f.render_stateful_widget(t, rects[0], &mut app.state);
+}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn Error>> {
     // Get OS and shell
     let os = env::consts::OS;
-    let shell = "bash";
+    let shell = "fish";
 
     // Parse input
     let args: Vec<String> = env::args().collect();
@@ -41,20 +135,69 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Send out reqest and parse command
     let result = client.chat_completion(req).await?;
-    let cmd = &result.choices[0].message.content;
 
-    println!("{}", cmd);
-    println!("Enter y to run or n to cancel");
+    let parent: ShellCommand = //Vec<String> = 
+            serde_json::from_str::<ShellCommand>(
+            &result.choices[0]
+            .message
+            .content
+            ).expect("Could not parse Commands");
 
-    if proceed() {
-        let argv = split(cmd).expect("Could not parse command");
-        Command::new(&argv[0])
-            .args(&argv[1..])
-            .spawn()
-            .expect("Command failed to start");
-    } else {
-        println!("Canceled");
+    let cmd: Vec<&str> = parent.commands.iter().map(AsRef::as_ref).collect();
+
+    // Define the TUI
+    // setup terminal
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    terminal.draw(|f| {
+        let size = f.size();
+        let block = Block::default().title("Block").borders(Borders::ALL);
+        f.render_widget(block, size);
+    })?;
+    // create app and run it
+    let app = App::new(&cmd);
+    let res = run_app(&mut terminal, app);
+
+    // restore terminal
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
+    if let Err(err) = res {
+        println!("{:?}", err)
     }
 
     Ok(())
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct ShellCommand {
+    commands: Vec<String>,
+}
+
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+    loop {
+        terminal.draw(|f| ui(f, &mut app))?;
+
+        if let Event::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Char('q') => return Ok(()),
+                KeyCode::Down => app.next(),
+                KeyCode::Up => app.previous(),
+                KeyCode::Enter => {
+                    app.execute();
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+    }
 }
