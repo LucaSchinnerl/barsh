@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use serde_json;
 use shlex::split;
+use tui::widgets::Paragraph;
 use std::process::Command;
 
 use openai_api_rs::v1::api::Client;
@@ -18,17 +18,81 @@ use crossterm::{
 use std::{error::Error, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Layout},
+    layout::{Constraint, Direction, Layout},
     style::{Modifier, Style},
     widgets::{Block, Borders, Cell, Row, Table, TableState},
+    text::{Span, Spans, Text},
     Frame, Terminal,
 };
+
+fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints(
+            [
+                Constraint::Length(1),
+                Constraint::Length(3),
+                Constraint::Min(1),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
+
+    let rects = Layout::default()
+        .constraints([Constraint::Percentage(50)].as_ref())
+        .margin(7)
+        .split(f.size());
+    let selected_style = Style::default().add_modifier(Modifier::REVERSED);
+    let rows = app.items.chunks(1).map(|item| {
+        let height = item
+            .iter()
+            .filter(|element| !element.is_empty())
+            .map(|content| content.chars().filter(|c| *c == '#').count())
+            .max()
+            .unwrap_or(0)
+            + 1;
+        let cells = item.iter().map(|c| Cell::from(*c));
+        Row::new(cells).height(height as u16).bottom_margin(1)
+    });
+
+
+    let (msg, style) = (
+        vec![
+            Span::raw("Press "),
+            Span::styled("q", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" to exit, "),
+            Span::styled("enter", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" to execute.")
+        ],
+        Style::default() 
+        );
+
+    let mut text = Text::from(Spans::from(msg));
+    text.patch_style(style);
+    let help_message = Paragraph::new(text);
+    f.render_widget(help_message, chunks[1]);
+
+
+
+    let t = Table::new(rows)
+        .block(Block::default().borders(Borders::ALL).title("Commands"))
+        .highlight_style(selected_style)
+        .highlight_symbol(">> ")
+        .widths(&[
+            Constraint::Percentage(50),
+            Constraint::Length(30),
+            Constraint::Min(10),
+        ]);
+    f.render_stateful_widget(t, rects[0], &mut app.state);
+}
+
 struct App<'a> {
     state: TableState,
     items: Vec<&'a str>,
 }
 impl<'a> App<'a> {
-    fn new(cmds: &'a Vec<&str>) -> App<'a> {
+    fn new(cmds: &'a [&str]) -> App<'a> {
         App {
             state: TableState::default(),
             items: cmds.to_vec(),
@@ -72,35 +136,6 @@ impl<'a> App<'a> {
     }
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
-    let rects = Layout::default()
-        .constraints([Constraint::Percentage(50)].as_ref())
-        .margin(7)
-        .split(f.size());
-    let selected_style = Style::default().add_modifier(Modifier::REVERSED);
-    let rows = app.items.chunks(1).map(|item| {
-        let height = item
-            .iter()
-            .filter(|element| !element.is_empty())
-            .map(|content| content.chars().filter(|c| *c == '#').count())
-            .max()
-            .unwrap_or(0)
-            + 1;
-        let cells = item.iter().map(|c| Cell::from(*c));
-        Row::new(cells).height(height as u16).bottom_margin(1)
-    });
-    let t = Table::new(rows)
-        .block(Block::default().borders(Borders::ALL).title("Commands"))
-        .highlight_style(selected_style)
-        .highlight_symbol(">> ")
-        .widths(&[
-            Constraint::Percentage(50),
-            Constraint::Length(30),
-            Constraint::Min(10),
-        ]);
-    f.render_stateful_widget(t, rects[0], &mut app.state);
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Get OS and shell
@@ -135,12 +170,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Send out reqest and parse command
     let result = client.chat_completion(req).await?;
+    let msg = &result.choices[0].message.content;
+    let parsed_command = &msg[
+        msg.find("{").expect("Response not JSON")..msg.rfind("}").expect("Response not JSON")+1
+    ];
 
     let parent: ShellCommand = //Vec<String> = 
             serde_json::from_str::<ShellCommand>(
-            &result.choices[0]
-            .message
-            .content
+               parsed_command
             ).expect("Could not parse Commands");
 
     let cmd: Vec<&str> = parent.commands.iter().map(AsRef::as_ref).collect();
