@@ -77,7 +77,7 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .block(Block::default().borders(Borders::ALL).title("Commands"))
         .highlight_style(selected_style)
         .widths(&[
-            Constraint::Percentage(50),
+            Constraint::Percentage(100),
             Constraint::Length(30),
             Constraint::Min(10),
         ]);
