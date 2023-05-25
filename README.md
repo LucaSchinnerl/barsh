@@ -4,7 +4,7 @@ Command line tool that translates questions into bash commands
 ## Installation:
 
 ### Step 1 Install Package
-`cargo install --git git@github.com:LucaSchinnerl/barsh.git`
+`cargo install --git https://github.com/LucaSchinnerl/barsh.git`
 
 ### Step 3 Set API-KEY
 To run first set your OPENAI API key
