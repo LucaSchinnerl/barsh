@@ -1,6 +1,11 @@
 # barsh
 Command line tool that translates questions into bash commands
 
+## Demo
+
+![](https://github.com/LucaSchinnerl/barsh/blob/7-add-demo/demos/hs_demo.gif)
+
+
 ## Installation:
 
 ### Step 1 Install Package
