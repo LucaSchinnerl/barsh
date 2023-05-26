@@ -16,6 +16,7 @@ pub struct App {
     pub items: Vec<String>,
     /// Current input position
     pub position: usize,
+    /// Table state
     pub state: TableState,
 }
 
@@ -28,7 +29,9 @@ impl App {
             state: TableState::default(),
         }
     }
+
     pub fn next(&mut self) {
+        // Select next item in the table
         let i = match self.state.selected() {
             Some(i) => {
                 if i >= self.items.len() - 1 {
@@ -44,6 +47,7 @@ impl App {
     }
 
     pub fn previous(&mut self) {
+        // Select previous item in table 
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
@@ -59,6 +63,7 @@ impl App {
     }
 
     pub fn execute(&mut self) {
+        // Exectue the current selected command
         let argv =
             split(&self.items[self.state.selected().unwrap()]).expect("Could not parse command");
         Command::new(&argv[0])
@@ -69,14 +74,15 @@ impl App {
 }
 
 pub enum InputMode {
-    Normal,
-    Editing,
+    Normal, // Normal mode
+    Editing, // Editing mode
 }
 
 pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
 
+        // Handle input
         if let Event::Key(key) = event::read()? {
             match app.input_mode {
                 InputMode::Normal => match key.code {

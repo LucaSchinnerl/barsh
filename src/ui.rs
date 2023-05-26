@@ -11,13 +11,16 @@ use tui::{
 use crate::{app::InputMode, App};
 
 pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+    // define the layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
         .constraints([Constraint::Length(1), Constraint::Min(1)].as_ref())
         .split(f.size());
 
+    // define the help message
     let (msg, style) = match app.input_mode {
+        // Help message for normal mode
         InputMode::Normal => (
             vec![
                 Span::raw("Press "),
@@ -30,6 +33,7 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             ],
             Style::default().add_modifier(Modifier::RAPID_BLINK),
         ),
+        // Help message for input mode
         InputMode::Editing => (
             vec![
                 Span::raw("Press "),
@@ -41,11 +45,15 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             Style::default(),
         ),
     };
+
+      
+    // render the help message
     let mut text = Text::from(Spans::from(msg));
     text.patch_style(style);
     let help_message = Paragraph::new(text);
     f.render_widget(help_message, chunks[0]);
 
+    // render cursor based on current input mode
     match app.input_mode {
         InputMode::Normal =>
             // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
@@ -61,6 +69,7 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             )
         }
     }
+    // render the table
     let rows = app.items.chunks(1).map(|item| {
         let height = item
             .iter()
@@ -72,6 +81,8 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         let cells = item.iter().map(|c| Cell::from(c.clone()));
         Row::new(cells).height(height as u16).bottom_margin(1)
     });
+
+    // Make selected row bold
     let selected_style = Style::default().add_modifier(Modifier::BOLD);
     let t = Table::new(rows)
         .block(Block::default().borders(Borders::ALL).title("Commands"))
