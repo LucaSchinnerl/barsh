@@ -19,7 +19,11 @@ mod ui;
 
 use app::{run_app, App};
 use prompt::generate_prompt;
+use std::time::Duration;
 use ui::ui;
+
+const MAX_RETRIES: u32 = 5;
+const RETRY_DELAY: u64 = 200;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ShellCommand {
@@ -28,32 +32,42 @@ struct ShellCommand {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    env::set_var("RUST_BACKTRACE", "1");
+
     // Open AI stuff
     // Get OS and shell
     let shell = "fish";
 
-    let prompt = generate_prompt(shell);
-
     // Define OPENAI request
     let client = Client::new(env::var("OPENAI_SK").expect("Could not find API key"));
-    let req = ChatCompletionRequest {
-        model: chat_completion::GPT3_5_TURBO.to_string(),
-        messages: vec![chat_completion::ChatCompletionMessage {
-            role: chat_completion::MessageRole::user,
-            content: prompt,
-        }],
-    };
 
-    // Send out reqest and parse command
-    let result = client.chat_completion(req).await?;
-    let msg = &result.choices[0].message.content;
-    let parsed_command = &msg
-        [msg.find("{").expect("Response not JSON")..msg.rfind("}").expect("Response not JSON") + 1];
+    let mut retries = 0;
+    let parent: Option<ShellCommand>;
+    loop {
+        let prompt = generate_prompt(shell);
+        let req = ChatCompletionRequest {
+            model: chat_completion::GPT3_5_TURBO.to_string(),
+            messages: vec![chat_completion::ChatCompletionMessage {
+                role: chat_completion::MessageRole::user,
+                content: prompt,
+            }],
+        };
+        match call_api(&client, req).await {
+            Ok(result) => {
+                parent = Some(result);
+                break;
+            }
+            Err(_err) => {
+                retries += 1;
 
-    let parent: ShellCommand = //Vec<String> = 
-            serde_json::from_str::<ShellCommand>(
-               parsed_command
-            ).expect("Could not parse Commands");
+                if retries >= MAX_RETRIES {
+                    panic!("Could not parse response. Maximum retries reached. Exiting...");
+                }
+                println!("Retrying in {} milliseconds...", RETRY_DELAY);
+                std::thread::sleep(Duration::from_millis(RETRY_DELAY));
+            }
+        }
+    }
 
     // setup terminal
     enable_raw_mode()?;
@@ -63,7 +77,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let app = App::new(parent.commands);
+    let app = App::new(parent.unwrap().commands);
     let res = run_app(&mut terminal, app);
 
     // restore terminal
@@ -80,4 +94,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+async fn call_api(
+    client: &Client,
+    req: ChatCompletionRequest,
+) -> Result<ShellCommand, serde_json::Error> {
+    // Send out reqest and parse command
+    let result = client
+        .chat_completion(req)
+        .await
+        .expect("Could not reach API");
+    let msg = &result.choices[0].message.content;
+    let parsed_command = &msg
+        [msg.find("{").expect("Response not JSON")..msg.rfind("}").expect("Response not JSON") + 1];
+
+    serde_json::from_str::<ShellCommand>(parsed_command)
 }
