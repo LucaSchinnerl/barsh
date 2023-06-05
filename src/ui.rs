@@ -46,7 +46,6 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         ),
     };
 
-      
     // render the help message
     let mut text = Text::from(Spans::from(msg));
     text.patch_style(style);
@@ -69,6 +68,7 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             )
         }
     }
+
     // render the table
     let rows = app.items.chunks(1).map(|item| {
         let height = item

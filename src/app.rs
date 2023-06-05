@@ -47,7 +47,7 @@ impl App {
     }
 
     pub fn previous(&mut self) {
-        // Select previous item in table 
+        // Select previous item in table
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
@@ -74,7 +74,7 @@ impl App {
 }
 
 pub enum InputMode {
-    Normal, // Normal mode
+    Normal,  // Normal mode
     Editing, // Editing mode
 }
 
@@ -116,7 +116,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                             app.items[app.state.selected().unwrap()].pop();
                             app.position -= 1;
                         } else if app.position > 0 {
-                            app.items[app.state.selected().unwrap()].remove(app.position-1);
+                            app.items[app.state.selected().unwrap()].remove(app.position - 1);
                             app.position -= 1;
                         }
                     }

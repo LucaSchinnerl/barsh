@@ -32,8 +32,6 @@ struct ShellCommand {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    env::set_var("RUST_BACKTRACE", "1");
-
     // Open AI stuff
     // Get OS and shell
     let shell = "fish";
@@ -57,12 +55,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 parent = Some(result);
                 break;
             }
-            Err(_err) => {
+            Err(err) => {
                 retries += 1;
 
                 if retries >= MAX_RETRIES {
                     panic!("Could not parse response. Maximum retries reached. Exiting...");
                 }
+                println!("{}", err);
                 println!("Retrying in {} milliseconds...", RETRY_DELAY);
                 std::thread::sleep(Duration::from_millis(RETRY_DELAY));
             }
@@ -106,8 +105,13 @@ async fn call_api(
         .await
         .expect("Could not reach API");
     let msg = &result.choices[0].message.content;
-    let parsed_command = &msg
-        [msg.find("{").expect("Response not JSON")..msg.rfind("}").expect("Response not JSON") + 1];
-
+    
+    let start = msg.find("{");
+    let end = msg.rfind("}"); 
+    if start.is_none() || end.is_none() {
+        let parsed_command = msg;
+        return serde_json::from_str::<ShellCommand>(parsed_command)
+    } 
+    let parsed_command = &msg[start.unwrap()..end.unwrap() + 1];
     serde_json::from_str::<ShellCommand>(parsed_command)
 }
