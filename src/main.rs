@@ -34,7 +34,7 @@ struct ShellCommand {
 async fn main() -> Result<(), Box<dyn Error>> {
     // Open AI stuff
     // Get OS and shell
-    let shell = "fish";
+    let shell = "bash";
 
     // Define OPENAI request
     let client = Client::new(env::var("OPENAI_SK").expect("Could not find API key"));
