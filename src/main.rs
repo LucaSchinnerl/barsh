@@ -40,8 +40,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let client = Client::new(env::var("OPENAI_SK").expect("Could not find API key"));
 
     let mut retries = 0;
-    let parent: Option<ShellCommand>;
-    loop {
+    let parent = loop {
         let prompt = generate_prompt(shell);
         let req = ChatCompletionRequest {
             model: chat_completion::GPT3_5_TURBO.to_string(),
@@ -52,8 +51,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         };
         match call_api(&client, req).await {
             Ok(result) => {
-                parent = Some(result);
-                break;
+                break Some(result);
             }
             Err(err) => {
                 retries += 1;
@@ -66,7 +64,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 std::thread::sleep(Duration::from_millis(RETRY_DELAY));
             }
         }
-    }
+    };
 
     // setup terminal
     enable_raw_mode()?;
