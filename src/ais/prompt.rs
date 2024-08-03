@@ -7,15 +7,17 @@ const PROMPT: &str = "Act as a natural language to {shell} command translation e
 
 You are an expert in {shell} on {os} and translate the question at the end to valid syntax.
 
-A user will as a question and will at least 3, but at most 6 unique and different {shell} command options.
+A user will as a question and will at least 5, but at most 10 unique and different {shell} command options.
 
 All answer must be valid {shell} commands.
 
 Output structred data that can be parsed without adjustements with each command seperated by a linebreak as follows:
-command1\ncommand2\ncommand3
+command1\ncommand2\ncommand3";
 
-User query:
-";
+pub struct Prompt {
+    pub system_message: String,
+    pub user_message: String,
+}
 
 fn get_shell_name() -> Result<String> {
     // Initialize system information
@@ -63,7 +65,7 @@ pub fn get_user_query() -> Result<String> {
     Ok(command)
 }
 
-pub fn generate_prompt() -> Result<String> {
+pub fn generate_prompt() -> Result<Prompt> {
     // Get the OS
     let os = env::consts::OS;
 
@@ -72,8 +74,11 @@ pub fn generate_prompt() -> Result<String> {
         Err(_) => "Bash".to_string(),
     };
 
-    let mut system_prompt = PROMPT.replace("{os}", os).replace("{shell}", &shell);
-    system_prompt.push_str(&get_user_query()?);
+    let system_message = PROMPT.replace("{os}", os).replace("{shell}", &shell);
+    let user_message = get_user_query()?;
 
-    Ok(system_prompt)
+    Ok(Prompt {
+        system_message,
+        user_message,
+    })
 }

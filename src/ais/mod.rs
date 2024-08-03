@@ -1,4 +1,4 @@
-use async_openai::types::CreateCompletionRequestArgs;
+use async_openai::types::{ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs, CreateAssistantRequestArgs, CreateChatCompletionRequestArgs};
 
 use anyhow::{anyhow, Result};
 use async_openai::config::OpenAIConfig;
@@ -34,24 +34,36 @@ pub async fn get_commands() -> Result<(ShellCommand)> {
 
     let prompt = generate_prompt()?;
 
-    // Send out request and parse command
-    let request = CreateCompletionRequestArgs::default()
-        .model("gpt-3.5-turbo-instruct")
-        .prompt(prompt)
-        .build()?;
+    let request = CreateChatCompletionRequestArgs::default()
+    .model("gpt-4o-mini")
+    .messages([
+        ChatCompletionRequestSystemMessageArgs::default()
+            .content(prompt.system_message)
+            .build()?
+            .into(),
+        ChatCompletionRequestUserMessageArgs::default()
+            .content(prompt.user_message)
+            .build()?
+            .into(),
+    ])
+    .build()?;
+    //create the assistant
 
-    let result = new_oa_client()?
-        .completions()
-        .create(request)
-        .await
-        .unwrap();
+    let client = new_oa_client()?;
+    let response = client.chat().create(request).await?;
 
-    let msg = match result.choices.first() {
-        Some(content) => content.text.clone(),
+
+    let msg = match response.choices.first() {
+        Some(content) => {
+            match content.message.content.as_deref() {
+                Some(msg) => msg,
+                None => return Err(anyhow!("Message content not found")),
+            }
+        },
         None => return Err(anyhow!("Message not found")),
     };
 
-    let shell_command = ShellCommand::from_multiline(msg);
+    let shell_command = ShellCommand::from_multiline(msg.into());
 
     Ok(shell_command)
 }
