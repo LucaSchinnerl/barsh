@@ -12,7 +12,9 @@ A user will as a question and will at least 5, but at most 10 unique and differe
 All answer must be valid {shell} commands.
 
 Output structred data that can be parsed without adjustements with each command seperated by a linebreak as follows:
-command1\ncommand2\ncommand3";
+command1\ncommand2\ncommand3
+
+Only return plain text";
 
 pub struct Prompt {
     pub system_message: String,

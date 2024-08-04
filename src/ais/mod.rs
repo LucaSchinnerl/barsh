@@ -1,4 +1,7 @@
-use async_openai::types::{ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs, CreateAssistantRequestArgs, CreateChatCompletionRequestArgs};
+use std::pin::Pin;
+use std::marker::PhantomData;
+
+use async_openai::types::{CreateChatCompletionStreamResponse, ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs, CreateAssistantRequestArgs, CreateChatCompletionRequestArgs, CreateChatCompletionRequest};
 
 use anyhow::{anyhow, Result};
 use async_openai::config::OpenAIConfig;
@@ -7,7 +10,11 @@ pub mod client;
 pub mod prompt;
 
 use client::new_oa_client;
+use futures::StreamExt;
 use prompt::generate_prompt;
+use tui::{backend::Backend, Terminal};
+
+use crate::app::{ui::ui, App};
 
 pub struct UserQuery(String);
 
@@ -17,7 +24,7 @@ pub struct ShellCommand {
 
 impl ShellCommand {
     // Factory method to create a ShellCommand from a multiline string
-    fn from_multiline(input: String) -> Self {
+    pub fn from_multiline(input: &str) -> Self {
         let commands = input // Split into lines
             .lines()
             .map(str::trim) // Trim each line
@@ -27,14 +34,17 @@ impl ShellCommand {
 
         ShellCommand { commands }
     }
+
+    pub fn new() -> Self {
+        ShellCommand { commands: Vec::new() }
+    }
 }
 
-pub async fn get_commands() -> Result<(ShellCommand)> {
+pub fn create_request() -> Result<CreateChatCompletionRequest> {
     // The function returns a Result containing a ShellCommand object on success, or a serde_json::Error on failure.
-
     let prompt = generate_prompt()?;
 
-    let request = CreateChatCompletionRequestArgs::default()
+    let request: async_openai::types::CreateChatCompletionRequest = CreateChatCompletionRequestArgs::default()
     .model("gpt-4o-mini")
     .messages([
         ChatCompletionRequestSystemMessageArgs::default()
@@ -49,21 +59,31 @@ pub async fn get_commands() -> Result<(ShellCommand)> {
     .build()?;
     //create the assistant
 
-    let client = new_oa_client()?;
-    let response = client.chat().create(request).await?;
+    Ok(request)
+}
 
+pub async fn process_stream<B: Backend>(stream_request: CreateChatCompletionRequest, terminal: &mut Terminal<B>) -> Result<ShellCommand> {
+    let mut stream = new_oa_client()?.chat().create_stream(stream_request).await?;
 
-    let msg = match response.choices.first() {
-        Some(content) => {
-            match content.message.content.as_deref() {
-                Some(msg) => msg,
-                None => return Err(anyhow!("Message content not found")),
+    let mut accumulated_result = String::new();
+    let mut app = App::new(ShellCommand::new());
+
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(response) => {
+                response.choices.iter().for_each(|chat_choice| {
+                    if let Some(ref content) = chat_choice.delta.content {
+                        accumulated_result.push_str(content);
+                        let shell_commands = ShellCommand::from_multiline(&accumulated_result);
+                        app.items = shell_commands;
+                        terminal.draw(|f| ui(f, &mut app)).unwrap();
+                    }
+                });
             }
-        },
-        None => return Err(anyhow!("Message not found")),
-    };
-
-    let shell_command = ShellCommand::from_multiline(msg.into());
-
-    Ok(shell_command)
+            Err(err) => {
+                anyhow::bail!("Error processing stream: {:?}", err);
+            }
+        }
+    }
+    Ok(ShellCommand::from_multiline(&accumulated_result))
 }

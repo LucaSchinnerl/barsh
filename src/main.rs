@@ -3,7 +3,7 @@ mod app;
 
 use app::{run_app, App};
 
-use ais::{get_commands, ShellCommand};
+use ais::{create_request, process_stream, ShellCommand};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
@@ -21,24 +21,8 @@ const RETRY_DELAY: u64 = 200;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut retries = 0;
-    let parent = loop {
-        match get_commands().await {
-            Ok(result) => {
-                break Some(result);
-            }
-            Err(err) => {
-                retries += 1;
 
-                if retries >= MAX_RETRIES {
-                    panic!("Could not parse response. Maximum retries reached. Exiting...");
-                }
-                println!("{}", err);
-                println!("Retrying in {} milliseconds...", RETRY_DELAY);
-                std::thread::sleep(Duration::from_millis(RETRY_DELAY));
-            }
-        }
-    };
+    let request = create_request()?;
 
     // setup terminal
     enable_raw_mode()?;
@@ -47,8 +31,10 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    let shell_command = process_stream(request, &mut terminal).await?;
+
     // create app and run it
-    let app = App::new(parent.unwrap().commands);
+    let app = App::new(shell_command);
     let res = run_app(&mut terminal, app);
 
     // restore terminal
