@@ -45,7 +45,7 @@ pub fn create_request() -> Result<CreateChatCompletionRequest> {
 
     let request: async_openai::types::CreateChatCompletionRequest =
         CreateChatCompletionRequestArgs::default()
-            .model("gpt-4o-mini")
+            .model("llama-3.1-70b-versatile")
             .messages([
                 ChatCompletionRequestSystemMessageArgs::default()
                     .content(prompt.system_message)
