@@ -4,7 +4,9 @@ use std::io;
 use std::process::Command;
 use tui::{backend::Backend, Terminal};
 
-use crate::ui;
+pub mod ui;
+
+use ui::ui;
 
 use tui::widgets::TableState;
 
