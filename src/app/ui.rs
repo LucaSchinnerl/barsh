@@ -70,7 +70,7 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     }
 
     // render the table
-    let rows = app.items.chunks(1).map(|item| {
+    let rows = app.items.commands.chunks(1).map(|item| {
         let height = item
             .iter()
             .filter(|element| !element.is_empty())
