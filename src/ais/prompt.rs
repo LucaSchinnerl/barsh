@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use std::env;
-use std::fs;
-use sysinfo::{Pid, System};
+use sysinfo::System;
 
 const PROMPT: &str = "Act as a natural language to {shell} command translation engine on {os}.
 

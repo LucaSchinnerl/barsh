@@ -3,25 +3,20 @@ mod app;
 
 use app::{run_app, App};
 
-use ais::{create_request, process_stream, ShellCommand};
+use ais::{create_request, process_stream};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{error::Error, io};
+use std::io;
 use tui::{backend::CrosstermBackend, Terminal};
 
-use std::time::Duration;
 
-use anyhow::{anyhow, Result};
-
-const MAX_RETRIES: u32 = 5;
-const RETRY_DELAY: u64 = 200;
+use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-
     let request = create_request()?;
 
     // setup terminal

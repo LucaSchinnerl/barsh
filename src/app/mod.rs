@@ -1,12 +1,8 @@
-use async_openai::types::CreateChatCompletionRequest;
 use crossterm::event::{self, Event, KeyCode};
 use shlex::split;
-use tokio::sync::mpsc;
 use std::io;
 use std::process::Command;
 use tui::{backend::Backend, Terminal};
-use anyhow::Result;
-use futures::StreamExt;
 
 pub mod ui;
 
@@ -14,7 +10,7 @@ use ui::ui;
 
 use tui::widgets::TableState;
 
-use crate::ais::{client::new_oa_client, ShellCommand};
+use crate::ais::ShellCommand;
 
 /// App holds the state of the application
 pub struct App {
@@ -72,8 +68,8 @@ impl App {
 
     pub fn execute(&mut self) {
         // Exectue the current selected command
-        let argv =
-            split(&self.items.commands[self.state.selected().unwrap()]).expect("Could not parse command");
+        let argv = split(&self.items.commands[self.state.selected().unwrap()])
+            .expect("Could not parse command");
         Command::new(&argv[0])
             .args(&argv[1..])
             .spawn()
@@ -124,7 +120,8 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                             app.items.commands[app.state.selected().unwrap()].pop();
                             app.position -= 1;
                         } else if app.position > 0 {
-                            app.items.commands[app.state.selected().unwrap()].remove(app.position - 1);
+                            app.items.commands[app.state.selected().unwrap()]
+                                .remove(app.position - 1);
                             app.position -= 1;
                         }
                     }

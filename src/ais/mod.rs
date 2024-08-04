@@ -1,10 +1,9 @@
-use std::pin::Pin;
-use std::marker::PhantomData;
+use async_openai::types::{
+    ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
+    CreateChatCompletionRequest, CreateChatCompletionRequestArgs,
+};
 
-use async_openai::types::{CreateChatCompletionStreamResponse, ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs, CreateAssistantRequestArgs, CreateChatCompletionRequestArgs, CreateChatCompletionRequest};
-
-use anyhow::{anyhow, Result};
-use async_openai::config::OpenAIConfig;
+use anyhow::Result;
 
 pub mod client;
 pub mod prompt;
@@ -15,8 +14,6 @@ use prompt::generate_prompt;
 use tui::{backend::Backend, Terminal};
 
 use crate::app::{ui::ui, App};
-
-pub struct UserQuery(String);
 
 pub struct ShellCommand {
     pub commands: Vec<String>,
@@ -36,7 +33,9 @@ impl ShellCommand {
     }
 
     pub fn new() -> Self {
-        ShellCommand { commands: Vec::new() }
+        ShellCommand {
+            commands: Vec::new(),
+        }
     }
 }
 
@@ -44,26 +43,33 @@ pub fn create_request() -> Result<CreateChatCompletionRequest> {
     // The function returns a Result containing a ShellCommand object on success, or a serde_json::Error on failure.
     let prompt = generate_prompt()?;
 
-    let request: async_openai::types::CreateChatCompletionRequest = CreateChatCompletionRequestArgs::default()
-    .model("gpt-4o-mini")
-    .messages([
-        ChatCompletionRequestSystemMessageArgs::default()
-            .content(prompt.system_message)
-            .build()?
-            .into(),
-        ChatCompletionRequestUserMessageArgs::default()
-            .content(prompt.user_message)
-            .build()?
-            .into(),
-    ])
-    .build()?;
+    let request: async_openai::types::CreateChatCompletionRequest =
+        CreateChatCompletionRequestArgs::default()
+            .model("gpt-4o-mini")
+            .messages([
+                ChatCompletionRequestSystemMessageArgs::default()
+                    .content(prompt.system_message)
+                    .build()?
+                    .into(),
+                ChatCompletionRequestUserMessageArgs::default()
+                    .content(prompt.user_message)
+                    .build()?
+                    .into(),
+            ])
+            .build()?;
     //create the assistant
 
     Ok(request)
 }
 
-pub async fn process_stream<B: Backend>(stream_request: CreateChatCompletionRequest, terminal: &mut Terminal<B>) -> Result<ShellCommand> {
-    let mut stream = new_oa_client()?.chat().create_stream(stream_request).await?;
+pub async fn process_stream<B: Backend>(
+    stream_request: CreateChatCompletionRequest,
+    terminal: &mut Terminal<B>,
+) -> Result<ShellCommand> {
+    let mut stream = new_oa_client()?
+        .chat()
+        .create_stream(stream_request)
+        .await?;
 
     let mut accumulated_result = String::new();
     let mut app = App::new(ShellCommand::new());
