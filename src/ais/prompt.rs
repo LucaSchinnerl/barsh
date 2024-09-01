@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use std::env;
 use sysinfo::System;
 
+use crate::utils::{get_user_query, UserQuery};
+
 const PROMPT: &str = "Act as a natural language to {shell} command translation engine on {os}.
 
 You are an expert in {shell} on {os} and translate the question at the end to valid syntax.
@@ -15,13 +17,31 @@ All answer must be valid {shell} commands.
 Output structred data that can be parsed without adjustements with each command seperated by a linebreak as follows:
 option_1_command\noption_2_command\noption_3_command etc.
 
-Only return plain text";
+Only return plain text and no additional information.";
 
+/// Represents a prompt with system and user messages.
 pub struct Prompt {
+    /// The system message to be included in the prompt.
     pub system_message: String,
-    pub user_message: String,
+    /// The user message to be included in the prompt.
+    pub user_message: UserQuery,
 }
 
+/// Retrieves the name of the shell being used.
+///
+/// This function attempts to identify the shell by examining the parent process
+/// of the current process. It handles various edge cases such as stripping
+/// suffixes for Windows executables and login shells.
+///
+/// # Returns
+///
+/// * `Result<String>` - On success, returns the name of the shell as a `String`.
+///   On failure, returns an error indicating the reason for failure.
+///
+/// # Errors
+///
+/// This function will return an error if it fails to get the current process ID,
+/// find the parent process, or identify the shell name.
 fn get_shell_name() -> Result<String> {
     // Initialize system information
     let sys = System::new_all();
@@ -54,18 +74,6 @@ fn get_shell_name() -> Result<String> {
 
     // Return an error if no process was found
     Err(anyhow::anyhow!("Shell could not be identified"))
-}
-
-pub fn get_user_query() -> Result<String> {
-    // Collect all userinput to form the Shell question
-    let args: Vec<String> = env::args().collect();
-    // Panic if user did not input a question
-    if args.len() <= 1 {
-        panic!("Please input a command");
-    }
-    let command = args[1..].join(" ");
-
-    Ok(command)
 }
 
 pub fn generate_prompt() -> Result<Prompt> {

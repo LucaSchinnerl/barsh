@@ -1,8 +1,10 @@
 mod ais;
 mod app;
+mod utils;
 
 use app::{run_app, App};
 
+use ais::prompt::generate_prompt;
 use ais::{create_request, process_stream};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
@@ -12,12 +14,14 @@ use crossterm::{
 use std::io;
 use tui::{backend::CrosstermBackend, Terminal};
 
-
 use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let request = create_request()?;
+    // Generate the prompt which includes system and user messages.
+    let prompt = generate_prompt()?;
+
+    let request = create_request(&prompt)?;
 
     // setup terminal
     enable_raw_mode()?;
@@ -26,7 +30,8 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let shell_command = process_stream(request, &mut terminal).await?;
+    let shell_command =
+        process_stream(request, &mut terminal, &prompt.user_message.endpoint).await?;
 
     // create app and run it
     let app = App::new(shell_command);

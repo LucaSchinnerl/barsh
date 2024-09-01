@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode};
 use shlex::split;
 use std::io;
@@ -24,7 +25,17 @@ pub struct App {
     pub state: TableState,
 }
 
+/// Represents the application state and behavior.
 impl App {
+    /// Creates a new `App` instance with the given `ShellCommand`.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - A `ShellCommand` containing the initial commands.
+    ///
+    /// # Returns
+    ///
+    /// * `App` - A new instance of `App`.
     pub fn new(input: ShellCommand) -> App {
         App {
             input_mode: InputMode::Normal,
@@ -34,46 +45,65 @@ impl App {
         }
     }
 
+    /// Selects the next item in the table.
+    /// This method updates the selected item to the next one in the list.
+    /// If the current item is the last one, it wraps around to the first item.
     pub fn next(&mut self) {
-        // Select next item in the table
+        // Determine the next index to select.
         let i = match self.state.selected() {
             Some(i) => {
                 if i >= self.items.commands.len() - 1 {
-                    0
+                    0 // Wrap around to the first item.
                 } else {
-                    i + 1
+                    i + 1 // Select the next item.
                 }
             }
-            None => 0,
+            None => 0, // If no item is selected, select the first item.
         };
         self.state.select(Some(i));
         self.position = self.items.commands[self.state.selected().unwrap()].len();
     }
 
+    /// Selects the previous item in the table.
+    ///
+    /// This method updates the selected item to the previous one in the list.
+    /// If the current item is the first one, it wraps around to the last item.
     pub fn previous(&mut self) {
-        // Select previous item in table
+        // Determine the previous index to select.
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.items.commands.len() - 1
+                    self.items.commands.len() - 1 // Wrap around to the last item.
                 } else {
-                    i - 1
+                    i - 1 // Select the previous item.
                 }
             }
-            None => 0,
+            None => 0, // If no item is selected, select the first item.
         };
         self.state.select(Some(i));
         self.position = self.items.commands[self.state.selected().unwrap()].len();
     }
 
-    pub fn execute(&mut self) {
-        // Exectue the current selected command
-        let argv = split(&self.items.commands[self.state.selected().unwrap()])
-            .expect("Could not parse command");
+    /// Executes the currently selected command.
+    ///
+    /// This method splits the selected command into arguments and spawns a new process
+    /// to execute the command.
+    ///
+    /// # Errors
+    ///
+    /// This method will return an error if the command parsing or execution fails.
+    pub fn execute(&mut self) -> Result<()> {
+        // Get the selected command and split it into arguments.
+        let selected = self.state.selected().context("No item selected")?;
+        let argv = split(&self.items.commands[selected]).context("Could not parse command")?;
+
+        // Spawn a new process to execute the command.
         Command::new(&argv[0])
             .args(&argv[1..])
             .spawn()
-            .expect("Command failed to start");
+            .context("Command failed to start")?;
+
+        Ok(())
     }
 }
 
@@ -99,14 +129,18 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Resu
                     KeyCode::Down => app.next(),
                     KeyCode::Up => app.previous(),
                     KeyCode::Enter => {
-                        app.execute();
+                        if let Err(e) = app.execute() {
+                            eprintln!("Error executing command: {}", e);
+                        }
                         return Ok(());
                     }
                     _ => {}
                 },
                 InputMode::Editing => match key.code {
                     KeyCode::Enter => {
-                        app.execute();
+                        if let Err(e) = app.execute() {
+                            eprintln!("Error executing command: {}", e);
+                        }
                         return Ok(());
                     }
                     KeyCode::Char(c) => {

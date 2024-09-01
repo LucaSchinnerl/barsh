@@ -10,6 +10,15 @@ use tui::{
 
 use crate::{app::InputMode, App};
 
+/// Renders the user interface for the application.
+///
+/// This function defines the layout, help messages, and renders the table of commands.
+/// It also manages the cursor visibility and position based on the current input mode.
+///
+/// # Arguments
+///
+/// * `f` - A mutable reference to the frame used for rendering.
+/// * `app` - A mutable reference to the application state.
 pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     // define the layout
     let chunks = Layout::default()
@@ -64,7 +73,7 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 // Put cursor past the end of the input text
                 chunks[1].x + 1 + app.position as u16,
                 // Move one line down, from the border to the input line
-                chunks[1].y + 1 + 2 * app.state.selected().unwrap() as u16,
+                chunks[1].y + 1 + 2 * app.state.selected().unwrap_or(0) as u16,
             )
         }
     }
