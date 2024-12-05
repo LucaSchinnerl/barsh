@@ -5,7 +5,6 @@ use async_openai::Client;
 pub type OaClient = Client<OpenAIConfig>;
 const ENV_API_KEY: &str = "GROQ_API_KEY";
 
-
 pub fn new_oa_client() -> Result<OaClient> {
     if std::env::var(ENV_API_KEY).is_ok() {
         let config = OpenAIConfig::new()

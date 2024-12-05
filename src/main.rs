@@ -12,7 +12,6 @@ use crossterm::{
 use std::io;
 use tui::{backend::CrosstermBackend, Terminal};
 
-
 use anyhow::Result;
 
 #[tokio::main]

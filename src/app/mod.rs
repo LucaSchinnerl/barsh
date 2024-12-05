@@ -1,5 +1,4 @@
 use crossterm::event::{self, Event, KeyCode};
-use shlex::split;
 use std::io;
 use std::process::Command;
 use tui::{backend::Backend, Terminal};
@@ -68,10 +67,10 @@ impl App {
 
     pub fn execute(&mut self) {
         // Exectue the current selected command
-        let argv = split(&self.items.commands[self.state.selected().unwrap()])
-            .expect("Could not parse command");
-        Command::new(&argv[0])
-            .args(&argv[1..])
+        let command_str = &self.items.commands[self.state.selected().unwrap()];
+        Command::new("sh")
+            .arg("-c")
+            .arg(command_str)
             .spawn()
             .expect("Command failed to start");
     }
